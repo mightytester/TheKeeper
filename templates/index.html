@@ -19,7 +19,6 @@
         .toolbar {
             position: sticky;
             top: 0;
-            background: #1a1a1a;
             padding: 12px 16px;
             display: flex;
             justify-content: space-between;
@@ -28,6 +27,8 @@
             gap: 8px;
             border-bottom: 1px solid #333;
             z-index: 10;
+            backdrop-filter: blur(10px);
+            background: rgba(20,20,20,0.6);
         }
 
         button {
@@ -45,28 +46,28 @@
             background: #2e8b57;
         }
 
-        /* Single-column grid */
+        /* Single-column card stack */
         .grid {
-            display: grid;
-            gap: 12px;
-            padding: 12px;
-            grid-template-columns: 1fr;
-            /* 1 image per row */
+            display: flex;
+            flex-direction: column;
+            padding: 0;
         }
 
-        /* Each tile */
+        /* Each card fills viewport */
         .item {
             position: relative;
-            background: #111;
-            border: 3px solid transparent;
-            border-radius: 8px;
-            padding: 4px;
-            cursor: pointer;
+            background: #000;
+            border: none;
+            border-radius: 0;
+            padding: 0;
+            cursor: grab;
             display: flex;
             align-items: center;
             justify-content: center;
             width: 100%;
+            height: 100vh;
             overflow: hidden;
+            touch-action: pan-y;
         }
 
         /* Selected border */
@@ -74,25 +75,54 @@
             border-color: #3cb371;
         }
 
-        /* Image fills width, keeps aspect ratio */
+        .item.swipe-right {
+            border-color: #3cb371;
+            background: rgba(60, 179, 113, 0.15);
+        }
+
+        .item.swipe-left {
+            border-color: #e74c3c;
+            background: rgba(231, 76, 60, 0.15);
+        }
+
+        .swipe-hint {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 28px;
+            font-weight: bold;
+            opacity: 0;
+            pointer-events: none;
+            text-shadow: 0 0 20px rgba(0,0,0,0.8);
+            letter-spacing: 2px;
+        }
+
+        .hint-keep {
+            left: 24px;
+            top: 24px;
+            transform: none;
+            font-size: 24px;
+        }
+
+        .hint-discard {
+            right: 24px;
+            top: 24px;
+            transform: none;
+            font-size: 24px;
+        }
+
+        /* Image fills full viewport */
         .item img {
             width: 100%;
-            height: auto;
-            /* important: keeps full vertical */
+            height: 100%;
             object-fit: contain;
-            /* no cropping */
-            border-radius: 6px;
             display: block;
             background: #000;
         }
 
-        /* Checkbox overlay */
+        /* Hide checkbox visually */
         .checkbox {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            transform: scale(1.4);
-            z-index: 1;
+            display: none;
         }
 
         /* Optional: increase gap on larger screens */
@@ -117,13 +147,8 @@
         <!-- Toolbar with two buttons -->
         <div class="toolbar">
             <div>{{ images|length }} images remaining</div>
-            <div>
-                <button type="submit" name="action" value="keep_selected">
-                    Keep Selected
-                </button>
-                <button type="submit" name="action" value="discard_selected">
-                    Discard Selected
-                </button>
+            <div style="opacity:0.7;font-size:14px">
+                Swipe right to keep • Swipe left to discard
             </div>
         </div>
 
@@ -132,6 +157,8 @@
             {% for img in images %}
             <div class="item" data-name="{{ img }}">
                 <input class="checkbox" type="checkbox" name="selected" value="{{ img }}">
+                <span class="swipe-hint hint-keep">KEEP</span>
+                <span class="swipe-hint hint-discard">DISCARD</span>
                 <img src="{{ url_for('serve_image', filename=img) }}" loading="lazy">
             </div>
             {% endfor %}
@@ -143,7 +170,80 @@
     <script>
         document.querySelectorAll(".item").forEach(item => {
             const checkbox = item.querySelector("input");
+            const keepHint = item.querySelector(".hint-keep");
+            const discardHint = item.querySelector(".hint-discard");
 
+            let startX = 0;
+            let currentX = 0;
+            let dragging = false;
+
+            item.addEventListener("touchstart", e => {
+                startX = e.touches[0].clientX;
+                dragging = true;
+            }, { passive: true });
+
+            item.addEventListener("touchmove", e => {
+                if (!dragging) return;
+                currentX = e.touches[0].clientX - startX;
+
+                item.style.transform = `translateX(${currentX}px)`;
+
+                if (currentX > 60) {
+                    keepHint.style.opacity = 1;
+                    discardHint.style.opacity = 0;
+                } else if (currentX < -60) {
+                    discardHint.style.opacity = 1;
+                    keepHint.style.opacity = 0;
+                } else {
+                    keepHint.style.opacity = 0;
+                    discardHint.style.opacity = 0;
+                }
+            }, { passive: true });
+
+            item.addEventListener("touchend", () => {
+                dragging = false;
+                item.style.transform = "";
+                keepHint.style.opacity = 0;
+                discardHint.style.opacity = 0;
+
+                if (currentX > 100) {
+                    checkbox.checked = true;
+                    item.classList.add("swipe-right");
+                    item.classList.remove("swipe-left");
+
+                    // Haptic feedback (Keep)
+                    if (navigator.vibrate) {
+                        navigator.vibrate(30);
+                    }
+
+                } else if (currentX < -100) {
+                    checkbox.checked = false;
+                    item.classList.add("swipe-left");
+                    item.classList.remove("swipe-right");
+
+                    // Haptic feedback (Discard)
+                    if (navigator.vibrate) {
+                        navigator.vibrate([20, 30, 20]);
+                    }
+                }
+
+                if (Math.abs(currentX) > 100) {
+                    item.style.transition = "transform 0.25s ease-out, opacity 0.25s";
+                    item.style.opacity = "0";
+
+                    setTimeout(() => {
+                        item.remove();
+                        const next = document.querySelector(".item");
+                        if (next) {
+                            next.scrollIntoView({ behavior: "instant" });
+                        }
+                    }, 250);
+                }
+
+                currentX = 0;
+            });
+
+            // Fallback tap selection (desktop / accessibility)
             item.addEventListener("click", e => {
                 if (e.target.tagName !== "INPUT") {
                     checkbox.checked = !checkbox.checked;
