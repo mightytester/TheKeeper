@@ -3,256 +3,448 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Image Review</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TheKeeper - Image Review</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <style>
-        /* Basic page styles */
-        body {
+        * {
             margin: 0;
-            background: #0e0e0e;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #0a0a0a;
             color: #eee;
-            font-family: system-ui, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
-        /* Toolbar */
-        .toolbar {
-            position: sticky;
-            top: 0;
-            padding: 12px 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 8px;
-            border-bottom: 1px solid #333;
-            z-index: 10;
-            backdrop-filter: blur(10px);
-            background: rgba(20,20,20,0.6);
-        }
-
-        button {
-            padding: 12px 18px;
-            font-size: 16px;
-            background: #3cb371;
-            border: none;
-            border-radius: 6px;
-            color: white;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        button:hover {
-            background: #2e8b57;
-        }
-
-        /* Single-column card stack */
-        .grid {
+        /* Full viewport container */
+        .container {
             display: flex;
             flex-direction: column;
-            padding: 0;
+            width: 100%;
+            height: 100%;
         }
 
-        /* Each card fills viewport */
-        .item {
+        /* Fixed header */
+        .header {
+            display: none;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .progress-counter {
+            background: rgba(60, 179, 113, 0.1);
+            padding: 4px 10px;
+            border-radius: 12px;
+            color: #3cb371;
+            font-size: 13px;
+        }
+
+        .header-right {
+            font-size: 12px;
+            opacity: 0.6;
+        }
+
+        /* Main viewport - card area */
+        .viewport {
+            flex: 1;
             position: relative;
+            overflow: hidden;
+        }
+
+        /* Card stack */
+        .card {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background: #000;
-            border: none;
             border-radius: 0;
-            padding: 0;
+            overflow: hidden;
+            touch-action: none;
             cursor: grab;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 100%;
-            height: 100vh;
-            overflow: hidden;
-            touch-action: pan-y;
+            will-change: transform, opacity;
         }
 
-        /* Selected border */
-        .item.selected {
-            border-color: #3cb371;
+        .card.current {
+            z-index: 10;
         }
 
-        .item.swipe-right {
-            border-color: #3cb371;
-            background: rgba(60, 179, 113, 0.15);
-        }
-
-        .item.swipe-left {
-            border-color: #e74c3c;
-            background: rgba(231, 76, 60, 0.15);
-        }
-
-        .swipe-hint {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 28px;
-            font-weight: bold;
+        .card.next {
+            z-index: 5;
             opacity: 0;
-            pointer-events: none;
-            text-shadow: 0 0 20px rgba(0,0,0,0.8);
-            letter-spacing: 2px;
+            transform: scale(0.95);
         }
 
-        .hint-keep {
-            left: 24px;
-            top: 24px;
-            transform: none;
-            font-size: 24px;
-        }
-
-        .hint-discard {
-            right: 24px;
-            top: 24px;
-            transform: none;
-            font-size: 24px;
-        }
-
-        /* Image fills full viewport */
-        .item img {
+        .card img {
             width: 100%;
             height: 100%;
             object-fit: contain;
-            display: block;
             background: #000;
         }
 
-        /* Hide checkbox visually */
-        .checkbox {
+        /* Swipe hints */
+        .swipe-hint {
+            position: absolute;
+            font-size: 32px;
+            font-weight: 700;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.1s;
+            z-index: 20;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            letter-spacing: 1px;
+        }
+
+        .hint-keep {
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #3cb371;
+        }
+
+        .hint-discard {
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #e74c3c;
+        }
+
+        /* Fixed footer */
+        .footer {
             display: none;
         }
 
-        /* Optional: increase gap on larger screens */
-        @media (min-width: 600px) {
-            .grid {
-                gap: 14px;
-            }
+        /* Empty state */
+        .empty-state {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 16px;
+            color: #666;
         }
 
-        @media (min-width: 900px) {
-            .grid {
-                gap: 16px;
+        .empty-state-icon {
+            font-size: 64px;
+            opacity: 0.3;
+        }
+
+        .empty-state-text {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        /* Loading indicator */
+        .loading {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 3px solid rgba(60, 179, 113, 0.2);
+            border-top-color: #3cb371;
+            animation: spin 0.8s linear infinite;
+            z-index: 50;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .loading.active {
+            opacity: 1;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Toast notification */
+        .toast {
+            display: none;
+        }
+
+        /* Responsive */
+        @media (min-width: 600px) {
+            .action-btn {
+                width: 60px;
+                height: 60px;
             }
         }
     </style>
 </head>
 
 <body>
-
-    <form method="POST" action="/process">
-
-        <!-- Toolbar with two buttons -->
-        <div class="toolbar">
-            <div>{{ images|length }} images remaining</div>
-            <div style="opacity:0.7;font-size:14px">
-                Swipe right to keep • Swipe left to discard
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <span style="font-size: 16px;">🎯</span>
+                <span class="progress-counter"><span id="current-count">0</span>/<span id="total-count">0</span></span>
+            </div>
+            <div class="header-right">
+                Swipe • Tap buttons
             </div>
         </div>
 
-        <!-- Image grid -->
-        <div class="grid">
-            {% for img in images %}
-            <div class="item" data-name="{{ img }}">
-                <input class="checkbox" type="checkbox" name="selected" value="{{ img }}">
-                <span class="swipe-hint hint-keep">KEEP</span>
-                <span class="swipe-hint hint-discard">DISCARD</span>
-                <img src="{{ url_for('serve_image', filename=img) }}" loading="lazy">
+        <!-- Viewport -->
+        <div class="viewport" id="viewport">
+            <div class="empty-state" id="empty-state">
+                <div class="empty-state-icon">✓</div>
+                <div class="empty-state-text">All done!</div>
             </div>
-            {% endfor %}
         </div>
 
-    </form>
+        <!-- Loading indicator -->
+        <div class="loading" id="loading"></div>
+    </div>
 
-    <!-- JavaScript: click selects item -->
     <script>
-        document.querySelectorAll(".item").forEach(item => {
-            const checkbox = item.querySelector("input");
-            const keepHint = item.querySelector(".hint-keep");
-            const discardHint = item.querySelector(".hint-discard");
+        class ImageReviewer {
+            constructor() {
+                this.images = [];
+                this.currentIndex = 0;
+                this.isProcessing = false;
+                this.touchStartX = 0;
+                this.touchCurrentX = 0;
+                this.touchStartTime = 0;
+                this.touchStartY = 0;
+                this.touchCurrentY = 0;
 
-            let startX = 0;
-            let currentX = 0;
-            let dragging = false;
+                this.viewport = document.getElementById("viewport");
+                this.emptyState = document.getElementById("empty-state");
+                this.loading = document.getElementById("loading");
+                this.counterCurrent = document.getElementById("current-count");
+                this.counterTotal = document.getElementById("total-count");
 
-            item.addEventListener("touchstart", e => {
-                startX = e.touches[0].clientX;
-                dragging = true;
-            }, { passive: true });
+                this.init();
+            }
 
-            item.addEventListener("touchmove", e => {
-                if (!dragging) return;
-                currentX = e.touches[0].clientX - startX;
+            async init() {
+                await this.loadImages();
+                this.renderCard();
+                this.attachEventListeners();
+            }
 
-                item.style.transform = `translateX(${currentX}px)`;
+            async loadImages() {
+                try {
+                    const res = await fetch("/api/images");
+                    const data = await res.json();
+                    this.images = data.images;
+                    this.counterTotal.textContent = this.images.length;
+                    this.updateCounter();
+                } catch (err) {
+                    console.error("Failed to load images:", err);
+                }
+            }
 
-                if (currentX > 60) {
-                    keepHint.style.opacity = 1;
-                    discardHint.style.opacity = 0;
-                } else if (currentX < -60) {
-                    discardHint.style.opacity = 1;
-                    keepHint.style.opacity = 0;
+            updateCounter() {
+                this.counterCurrent.textContent = Math.max(0, this.images.length - this.currentIndex);
+            }
+
+            renderCard() {
+                // Clear viewport
+                this.viewport.innerHTML = "";
+
+                if (this.images.length === 0) {
+                    this.emptyState.style.display = "flex";
+                    this.viewport.appendChild(this.emptyState);
+                    return;
+                }
+
+                // Current card
+                const card = this.createCard(this.images[this.currentIndex], "current");
+                this.viewport.appendChild(card);
+
+                // Next card (preview)
+                if (this.currentIndex + 1 < this.images.length) {
+                    const nextCard = this.createCard(this.images[this.currentIndex + 1], "next");
+                    this.viewport.appendChild(nextCard);
+                }
+
+                this.attachCardListeners(card);
+            }
+
+            createCard(imageName, className) {
+                const card = document.createElement("div");
+                card.className = `card ${className}`;
+
+                const img = document.createElement("img");
+                img.src = `/images/${imageName}`;
+                img.alt = imageName;
+
+                const keepHint = document.createElement("span");
+                keepHint.className = "swipe-hint hint-keep";
+                keepHint.textContent = "KEEP ♥";
+
+                const discardHint = document.createElement("span");
+                discardHint.className = "swipe-hint hint-discard";
+                discardHint.textContent = "✕ DISCARD";
+
+                card.appendChild(img);
+                card.appendChild(keepHint);
+                card.appendChild(discardHint);
+
+                return card;
+            }
+
+            attachCardListeners(card) {
+                card.addEventListener("touchstart", e => this.handleTouchStart(e), { passive: true });
+                card.addEventListener("touchmove", e => this.handleTouchMove(e, card), { passive: true });
+                card.addEventListener("touchend", e => this.handleTouchEnd(e), { passive: false });
+            }
+
+            handleTouchStart(e) {
+                if (this.isProcessing) return;
+                this.touchStartX = e.touches[0].clientX;
+                this.touchStartY = e.touches[0].clientY;
+                this.touchCurrentX = 0;
+                this.touchStartTime = Date.now();
+            }
+
+            handleTouchMove(e, card) {
+                if (this.isProcessing) return;
+                const deltaX = e.touches[0].clientX - this.touchStartX;
+                const deltaY = e.touches[0].clientY - this.touchStartY;
+
+                this.touchCurrentX = deltaX;
+                this.touchCurrentY = deltaY;
+
+                // Ignore if vertical movement dominates
+                if (Math.abs(deltaY) > Math.abs(deltaX)) return;
+
+                // Apply transform only - no scale, no hints
+                card.style.transform = `translateX(${deltaX}px)`;
+            }
+
+            handleTouchEnd(e) {
+                if (this.isProcessing) return;
+                const card = document.querySelector(".card.current");
+                const timeDelta = Date.now() - this.touchStartTime;
+                const velocity = timeDelta > 0 ? this.touchCurrentX / timeDelta : 0;
+
+                // Determine action based on distance and velocity
+                if (Math.abs(this.touchCurrentY) > 80 && this.touchCurrentY < -40) {
+                    // Upward swipe - skip
+                    this.skipImage();
+                } else if (this.touchCurrentX > 100 || (this.touchCurrentX > 40 && velocity > 0.5)) {
+                    this.processImage("keep");
+                } else if (this.touchCurrentX < -100 || (this.touchCurrentX < -40 && velocity < -0.5)) {
+                    this.processImage("discard");
                 } else {
-                    keepHint.style.opacity = 0;
-                    discardHint.style.opacity = 0;
+                    // Snap back - no transition for instant feel
+                    card.style.transform = "";
                 }
-            }, { passive: true });
+            }
 
-            item.addEventListener("touchend", () => {
-                dragging = false;
-                item.style.transform = "";
-                keepHint.style.opacity = 0;
-                discardHint.style.opacity = 0;
+            attachEventListeners() {
+                // Removed - button actions no longer needed, only swipe
+            }
 
-                if (currentX > 100) {
-                    checkbox.checked = true;
-                    item.classList.add("swipe-right");
-                    item.classList.remove("swipe-left");
+            skipImage() {
+                if (this.isProcessing || this.images.length === 0) return;
 
-                    // Haptic feedback (Keep)
-                    if (navigator.vibrate) {
-                        navigator.vibrate(30);
+                this.isProcessing = true;
+                const card = document.querySelector(".card.current");
+
+                // Animate card up
+                card.style.transition = "all 0.15s ease-out";
+                card.style.opacity = "0";
+                card.style.transform = "translateY(-200px)";
+
+                setTimeout(() => {
+                    // Move to next image, stop at end
+                    if (this.currentIndex + 1 < this.images.length) {
+                        this.currentIndex++;
                     }
+                    this.updateCounter();
+                    this.renderCard();
+                    this.isProcessing = false;
+                }, 150);
+            }
 
-                } else if (currentX < -100) {
-                    checkbox.checked = false;
-                    item.classList.add("swipe-left");
-                    item.classList.remove("swipe-right");
+            async processImage(action) {
+                if (this.isProcessing || this.images.length === 0) return;
 
-                    // Haptic feedback (Discard)
-                    if (navigator.vibrate) {
-                        navigator.vibrate([20, 30, 20]);
+                this.isProcessing = true;
+                this.loading.classList.add("active");
+                const currentImage = this.images[this.currentIndex];
+
+                try {
+                    const res = await fetch("/api/process", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            action,
+                            image: currentImage
+                        })
+                    });
+
+                    const data = await res.json();
+                    if (data.success) {
+                        // Update images list from server
+                        this.images = data.images;
+                        this.counterTotal.textContent = data.count;
+
+                        // Animate card out
+                        const card = document.querySelector(".card.current");
+                        card.style.transition = "all 0.15s ease-out";
+                        card.style.opacity = "0";
+                        card.style.transform = action === "keep" 
+                            ? "translateX(100px)" 
+                            : "translateX(-100px)";
+
+                        // Wait for animation then render next
+                        setTimeout(() => {
+                            this.currentIndex = 0;
+                            this.updateCounter();
+                            this.renderCard();
+                            this.isProcessing = false;
+                            this.loading.classList.remove("active");
+                        }, 150);
+                    } else {
+                        throw new Error(data.error || "Unknown error");
+                    }
+                } catch (err) {
+                    console.error("Error processing image:", err);
+                    this.isProcessing = false;
+                    this.loading.classList.remove("active");
+                    // Snap card back on error
+                    const card = document.querySelector(".card.current");
+                    if (card) {
+                        card.style.transition = "all 0.3s ease-out";
+                        card.style.transform = "";
+                        card.style.opacity = "1";
                     }
                 }
+            }
+        }
 
-                if (Math.abs(currentX) > 100) {
-                    item.style.transition = "transform 0.25s ease-out, opacity 0.25s";
-                    item.style.opacity = "0";
-
-                    setTimeout(() => {
-                        item.remove();
-                        const next = document.querySelector(".item");
-                        if (next) {
-                            next.scrollIntoView({ behavior: "instant" });
-                        }
-                    }, 250);
-                }
-
-                currentX = 0;
-            });
-
-            // Fallback tap selection (desktop / accessibility)
-            item.addEventListener("click", e => {
-                if (e.target.tagName !== "INPUT") {
-                    checkbox.checked = !checkbox.checked;
-                }
-                item.classList.toggle("selected", checkbox.checked);
-            });
+        // Initialize when DOM is ready
+        document.addEventListener("DOMContentLoaded", () => {
+            new ImageReviewer();
         });
     </script>
-
 </body>
 
 </html>

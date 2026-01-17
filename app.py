@@ -1,6 +1,7 @@
 import os
 import shutil
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory
+import json
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, jsonify
 
 app = Flask(__name__)
 
@@ -23,6 +24,30 @@ def get_images():
 def index():
     images = get_images()
     return render_template("index.html", images=images)
+
+@app.route("/api/images")
+def get_images_api():
+    """API endpoint to get remaining images"""
+    images = get_images()
+    return jsonify({"images": images, "count": len(images)})
+
+@app.route("/api/process", methods=["POST"])
+def process_api():
+    """API endpoint for AJAX requests (no page reload)"""
+    data = request.json
+    action = data.get("action")
+    image = data.get("image")
+    
+    try:
+        if action == "keep":
+            shutil.move(os.path.join(TO_REVIEW, image), os.path.join(SELECTED, image))
+        elif action == "discard":
+            shutil.move(os.path.join(TO_REVIEW, image), os.path.join(DISCARDED, image))
+        
+        remaining = get_images()
+        return jsonify({"success": True, "remaining": len(remaining), "images": remaining})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/process", methods=["POST"])
 def process():
